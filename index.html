@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>行程记录与分析智能体</title>
+<style>
+  :root{
+    --blue:#0c447c; --blue2:#185FA5; --green:#3B6D11; --amber:#BA7517;
+    --bg:#f1f5f9; --card:#fff; --line:#e2e8f0; --text:#0f172a; --sub:#64748b;
+    --red:#b91c1c; --redbg:#fee2e2;
+  }
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;margin:0;background:var(--bg);color:var(--text)}
+  header{background:var(--blue);color:#fff;padding:14px 22px;display:flex;align-items:center;justify-content:space-between}
+  header h1{font-size:17px;margin:0;font-weight:600}
+  header .hint{font-size:12px;opacity:.8}
+  nav{display:flex;gap:4px;background:#0a3a68;padding:0 14px}
+  nav button{background:none;border:none;color:#cbd5e1;padding:11px 16px;font-size:14px;cursor:pointer;border-bottom:2px solid transparent}
+  nav button.active{color:#fff;border-bottom-color:#fff;font-weight:600}
+  main{padding:20px 22px;max-width:1080px;margin:0 auto}
+  .tab{display:none}
+  .tab.active{display:block}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  textarea{width:100%;min-height:90px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;resize:vertical;font-family:inherit}
+  button.btn{background:var(--blue2);color:#fff;border:none;border-radius:9px;padding:9px 16px;font-size:14px;cursor:pointer}
+  button.btn:hover{background:#15528f}
+  button.ghost{background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;color:var(--text)}
+  button.danger{background:var(--redbg);color:var(--red);border:1px solid #fca5a5}
+  .row{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+  .field{flex:1 1 200px;display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:12px;color:var(--sub)}
+  .field input,.field select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff}
+  .field.miss input,.field.miss select{border-color:var(--amber);background:#fffbeb}
+  .type-custom{margin-top:6px;display:none}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;background:#ecfdf5;color:#047857;margin-left:6px}
+  .tag.warn{background:#fef3c7;color:#b45309}
+  .note{font-size:12px;color:var(--sub);margin:8px 0}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}
+  th{background:#f8fafc;color:var(--sub);font-weight:600}
+  td.actions{white-space:nowrap}
+  .filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+  .filters .field{flex:0 1 150px}
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax:300px,1fr));gap:16px;margin-top:16px}
+  .chart h3{margin:0 0 10px;font-size:14px}
+  .bars{display:flex;align-items:flex-end;gap:8px;height:180px;padding-top:6px;border-bottom:1px solid var(--line);overflow-x:auto}
+  .bar{flex:1 1 0;min-width:28px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
+  .bar .col{width:100%;border-radius:5px 5px 0 0;background:var(--blue2);min-height:2px}
+  .bar .v{font-size:11px;color:var(--text);margin-bottom:3px}
+  .bar .l{font-size:10px;color:var(--sub);margin-top:4px;white-space:nowrap}
+  .bar.green .col{background:var(--green)}
+  .bar.amber .col{background:var(--amber)}
+  .empty{padding:36px;text-align:center;color:var(--sub)}
+  .pivot-wrap{overflow-x:auto;margin-top:12px}
+  .pivot th,.pivot td{text-align:center;white-space:nowrap}
+  .pivot td:first-child,.pivot th:first-child{text-align:left;position:sticky;left:0;background:#fff;z-index:1}
+  .pivot th:first-child{background:#f8fafc}
+  /* modal */
+  .mask{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+  .mask.show{display:flex}
+  .modal{background:#fff;border-radius:14px;padding:20px;width:100%;max-width:720px}
+  .modal h3{margin:0 0 12px;font-size:16px}
+  .close{float:right;cursor:pointer;color:var(--sub);font-size:20px;line-height:1}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:.2s;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>行程记录与分析智能体</h1>
+  <span class="hint">口语录入 · 派生计算 · 层级确认 · 看板分析 · Excel 导出</span>
+</header>
+<nav>
+  <button data-tab="entry" class="active">录入</button>
+  <button data-tab="records">记录</button>
+  <button data-tab="board">看板</button>
+  <button data-tab="export">导出</button>
+</nav>
+<main>
+  <!-- 录入 -->
+  <section id="entry" class="tab active">
+    <div class="card">
+      <div class="note">用口语描述一期行程，例如：“中国移动河南郑州AI训战项目，8月1日到8月3日执行，7月31日出发8月4日返程”。系统会自动抽取字段、计算天数，并推算讲师层级（需你确认）。</div>
+      <textarea id="oralText" placeholder="在此粘贴或输入口语化行程描述…"></textarea>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" onclick="parseText()">解析</button>
+        <button class="ghost" onclick="clearDraft()">清空</button>
+      </div>
+    </div>
+    <div class="card" id="draftCard" style="display:none">
+      <h3 style="margin:0 0 6px;font-size:15px">解析草稿（可修改后确认）</h3>
+      <div class="note" id="draftNote"></div>
+      <div class="row" id="draftFields"></div>
+      <div class="row" style="align-items:center;margin-top:14px">
+        <div class="field" style="flex:0 1 150px">
+          <label>讲师层级（自动推算，可改）</label>
+          <input id="levelInput" type="number" min="1" value="1">
+        </div>
+        <div class="field" style="flex:0 1 220px;justify-content:flex-end">
+          <button class="btn" onclick="saveTrip()">确认并保存</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 记录 -->
+  <section id="records" class="tab">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0;font-size:15px">全部行程记录（含作废标记的除外）</h3>
+        <button class="ghost" onclick="loadRecords()">刷新</button>
+      </div>
+      <div style="overflow-x:auto;margin-top:12px">
+        <table id="recTable">
+          <thead><tr><th>ID</th><th>项目名称</th><th>运营商</th><th>省/市</th><th>类型</th><th>执行</th><th>出发/返程</th><th>执行天</th><th>花费天</th><th>层级</th><th>操作</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 看板 -->
+  <section id="board" class="tab">
+    <div class="card">
+      <div class="filters">
+        <div class="field"><label>时间维度</label><select id="fDim"><option value="周">周</option><option value="月">月</option><option value="年">年</option></select></div>
+        <div class="field"><label>省份</label><select id="fProv"></select></div>
+        <div class="field"><label>地市</label><select id="fCity"></select></div>
+        <div class="field"><label>项目类型</label><select id="fType"></select></div>
+        <div class="field"><label>运营商</label><select id="fOp"></select></div>
+        <div class="field"><label>&nbsp;</label><button class="ghost" id="resetBtn" onclick="resetFilters()">重置筛选</button></div>
+      </div>
+    </div>
+    <div class="charts" id="charts">
+      <div class="card chart"><h3>出行次数（按时间桶）</h3><div class="bars" id="barCnt"></div></div>
+      <div class="card chart"><h3>执行天数合计</h3><div class="bars green" id="barExec"></div></div>
+      <div class="card chart"><h3>花费时间合计</h3><div class="bars amber" id="barTotal"></div></div>
+    </div>
+    <div class="empty" id="boardEmpty" style="display:none">当前筛选无数据，请调整条件。</div>
+    <div class="card" style="margin-top:16px">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:10px">
+        <h3 style="margin:0;font-size:15px;flex:1 1 200px">维度汇总</h3>
+        <div class="field" style="flex:0 1 140px">
+          <label>汇总指标</label>
+          <select id="pivotMetric">
+            <option value="count">出行次数</option>
+            <option value="exec_days">执行天数</option>
+            <option value="total_days">花费时间</option>
+          </select>
+        </div>
+      </div>
+      <div class="charts" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-top:0">
+        <div class="card chart" style="padding:12px"><h3>按省份</h3><div class="pivot-wrap"><table id="sumProvince" class="pivot"></table></div></div>
+        <div class="card chart" style="padding:12px"><h3>按地市</h3><div class="pivot-wrap"><table id="sumCity" class="pivot"></table></div></div>
+        <div class="card chart" style="padding:12px"><h3>按项目类型</h3><div class="pivot-wrap"><table id="sumType" class="pivot"></table></div></div>
+        <div class="card chart" style="padding:12px"><h3>按运营商</h3><div class="pivot-wrap"><table id="sumOperator" class="pivot"></table></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 导出 -->
+  <section id="export" class="tab">
+    <div class="card">
+      <h3 style="margin:0 0 8px;font-size:15px">导出 Excel</h3>
+      <div class="note">导出文件包含两表：明细（全部字段）与汇总（按省份/类型/运营商/年份的出行次数、执行天数、花费时间）。</div>
+      <button class="btn" onclick="doExport()">下载 trips.xlsx</button>
+    </div>
+  </section>
+</main>
+
+<!-- 编辑弹窗 -->
+<div class="mask" id="editMask">
+  <div class="modal">
+    <span class="close" onclick="closeEdit()">×</span>
+    <h3>编辑记录 #<span id="editId"></span></h3>
+    <div class="row" id="editFields"></div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button class="ghost" onclick="closeEdit()">取消</button>
+      <button class="btn" onclick="submitEdit()">保存修改</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const FIELDS = [
+  ["项目名称","text"],["运营商","select"],["执行省份","text"],["执行地市","text"],
+  ["项目类型","select"],["项目执行开始","date"],["项目执行结束","date"],
+  ["出发日期","date"],["返程日期","date"]
+];
+const TYPES = ["AI","专线","云","ICT","商客","其他"];
+const OPS = ["移动","联通","电信","广电"];
+let draftFound = {}, draftMissing = [], draftLevel = 1;
+let editId = null, editFields = {};
+
+function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800);}
+function api(path,body){return fetch(path,{method:body?"POST":"GET",headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined}).then(r=>r.json());}
+function switchTab(name){document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));document.querySelectorAll(".tab").forEach(s=>s.classList.toggle("active",s.id===name));if(name==="records")loadRecords();if(name==="board")loadBoard();}
+
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+
+// ---------- 通用字段渲染 ----------
+function buildTypeField(name,val,miss,mode){
+  const wrap=document.createElement("div");wrap.className="field"+(miss?" miss":"");
+  const lab=document.createElement("label");lab.textContent=name+(miss?"（缺失）":"");wrap.appendChild(lab);
+  const selId=mode+"_项目类型", inpId=mode+"_项目类型_其他";
+  const isOther = val && !TYPES.includes(val);
+  const sel=document.createElement("select");sel.id=selId;
+  let html='<option value="">请选择</option>';
+  TYPES.forEach(o=>html+=`<option value="${o}" ${o===(isOther?"其他":val)?"selected":""}>${o}</option>`);
+  html+='<option value="其他" '+(isOther?"selected":"")+'>其他（请填写）</option>';
+  sel.innerHTML=html;
+  const inp=document.createElement("input");inp.type="text";inp.id=inpId;inp.className="type-custom";inp.placeholder="请填写具体类型";
+  if(isOther) inp.value=val;
+  wrap.appendChild(sel);wrap.appendChild(inp);
+  const toggle=()=>{inp.style.display=(sel.value==="其他")?"block":"none";if(sel.value!=="其他")inp.value="";}
+  sel.addEventListener("change",toggle);toggle();
+  return wrap;
+}
+function buildField(name,type,val,miss,mode){
+  if(name==="项目类型") return buildTypeField(name,val,miss,mode);
+  const wrap=document.createElement("div");wrap.className="field"+(miss?" miss":"");
+  const lab=document.createElement("label");lab.textContent=name+(miss?"（缺失）":"");wrap.appendChild(lab);
+  let el;
+  if(type==="select"){
+    el=document.createElement("select");
+    const opts = name==="运营商"?OPS:TYPES;
+    el.innerHTML='<option value="">请选择</option>'+opts.map(o=>`<option value="${o}" ${o===val?"selected":""}>${o}</option>`).join("");
+  }else{
+    el=document.createElement("input");el.type=type;if(val)el.value=val;
+  }
+  el.id=mode+"_"+name;wrap.appendChild(el);return wrap;
+}
+function getTypeValue(mode){
+  const sel=document.getElementById(mode+"_项目类型");
+  if(!sel) return "";
+  if(sel.value==="其他"){
+    const v=document.getElementById(mode+"_项目类型_其他").value.trim();
+    return v || "其他";
+  }
+  return sel.value;
+}
+
+// ---------- 录入 ----------
+function parseText(){
+  const text=document.getElementById("oralText").value.trim();
+  if(!text){toast("请先输入描述");return;}
+  api("/api/parse",{text}).then(d=>{
+    draftFound=d.found||{};draftMissing=d.missing||[];
+    draftLevel=(d.level_hint!=null)?d.level_hint:(d.level||1);
+    const box=document.getElementById("draftFields");box.innerHTML="";
+    FIELDS.forEach(([n,t])=>{box.appendChild(buildField(n,t,draftFound[n]||"",draftMissing.includes(n),"f"));});
+    document.getElementById("levelInput").value=draftLevel;
+    const note=document.getElementById("draftNote");
+    let levelInfo = (d.level_source==="text")
+      ? `已从文本识别到当前讲师层级 <b>${draftLevel}</b>，请确认。`
+      : `讲师层级按历史记录自动推算为 <b>${draftLevel}</b>，可改。`;
+    note.innerHTML = draftMissing.length
+      ? `已自动抽取字段，以下标黄项缺失或需核对：<b>${draftMissing.join("、")}</b>；${levelInfo}`
+      : `字段已完整抽取，${levelInfo}`;
+    document.getElementById("draftCard").style.display="block";
+  });
+}
+function clearDraft(){document.getElementById("oralText").value="";document.getElementById("draftCard").style.display="none";}
+function collectDraft(){
+  const f={};
+  FIELDS.forEach(([n])=>{
+    if(n==="项目类型") return;
+    const v=document.getElementById("f_"+n).value.trim();if(v)f[n]=v;
+  });
+  f["项目类型"]=getTypeValue("f");
+  f["讲师层级"]=document.getElementById("levelInput").value;
+  return f;
+}
+function saveTrip(){
+  const fields=collectDraft();
+  const need=["项目名称","运营商","执行省份","执行地市","项目类型","项目执行开始","项目执行结束","出发日期","返程日期"];
+  const lack=need.filter(k=>!fields[k]);
+  if(lack.length){toast("缺失必填项："+lack.join("、"));return;}
+  api("/api/add",{fields,level_override:fields["讲师层级"]}).then(d=>{
+    toast("已保存 #"+d.record["记录ID"]);
+    document.getElementById("oralText").value="";
+    document.getElementById("draftCard").style.display="none";
+    loadBoard();
+  });
+}
+
+// ---------- 记录 ----------
+function loadRecords(){
+  api("/api/list").then(d=>{
+    const tb=document.querySelector("#recTable tbody");tb.innerHTML="";
+    d.rows.forEach(r=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML=`<td>${r["记录ID"]}</td><td>${r["项目名称"]}</td><td>${r["运营商"]}</td>`+
+        `<td>${r["执行省份"]}/${r["执行地市"]}</td><td>${r["项目类型"]}</td>`+
+        `<td>${r["项目执行开始"]} ~ ${r["项目执行结束"]}</td>`+
+        `<td>${r["出发日期"]} ~ ${r["返程日期"]}</td>`+
+        `<td>${r["项目执行天数"]}</td><td>${r["项目总计花费时间"]}</td><td>${r["讲师层级"]}</td>`+
+        `<td class="actions"><button class="ghost" onclick="openEdit(${r["记录ID"]})">编辑</button> `+
+        `<button class="danger" onclick="delRec(${r["记录ID"]})">删除</button></td>`;
+      tb.appendChild(tr);
+    });
+  });
+}
+function delRec(id){if(confirm("软删除 #"+id+"（可在数据中恢复）？"))api("/api/delete",{id}).then(()=>{toast("已软删除");loadRecords();loadBoard();});}
+function openEdit(id){
+  editId=id;
+  api("/api/list").then(d=>{
+    const r=d.rows.find(x=>String(x["记录ID"])===String(id));if(!r)return;
+    document.getElementById("editId").textContent=id;
+    const box=document.getElementById("editFields");box.innerHTML="";
+    FIELDS.forEach(([n,t])=>{box.appendChild(buildField(n,t,r[n]||"",false,"e"));});
+    // 追加讲师层级字段
+    const levelWrap=document.createElement("div");levelWrap.className="field";
+    levelWrap.innerHTML='<label>讲师层级</label><input id="e_讲师层级" type="number" min="1" value="'+(r["讲师层级"]||1)+'">';
+    box.appendChild(levelWrap);
+    document.getElementById("editMask").classList.add("show");
+  });
+}
+function closeEdit(){document.getElementById("editMask").classList.remove("show");}
+function submitEdit(){
+  const updates={};
+  FIELDS.forEach(([n])=>{
+    if(n==="项目类型") return;
+    const v=document.getElementById("e_"+n).value.trim();if(v)updates[n]=v;
+  });
+  updates["项目类型"]=getTypeValue("e");
+  const lv=document.getElementById("e_讲师层级").value.trim();
+  if(lv) updates["讲师层级"]=parseInt(lv,10);
+  api("/api/edit",{id:editId,updates}).then(()=>{toast("已更新");closeEdit();loadRecords();loadBoard();});
+}
+
+// ---------- 看板 ----------
+function bucket(iso,dim){if(!iso)return"";const d=new Date(iso);if(dim==="周"){const t=new Date(d.getFullYear(),0,1);const w=Math.ceil((((d-t)/86400000)+t.getDay()+1)/7);return d.getFullYear()+"-W"+String(w).padStart(2,"0");}if(dim==="月")return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");return String(d.getFullYear());}
+function uniq(a){return [...new Set(a)].filter(Boolean).sort();}
+function fill(sel,vals,keep){const cur=sel.value;sel.innerHTML='<option value="">全部</option>'+vals.map(v=>`<option value="${v}" ${v===cur?"selected":""}>${v}</option>`).join("");}
+function renderBars(elId,labels,vals){
+  const box=document.getElementById(elId);box.innerHTML="";
+  const max=Math.max(1,...vals);
+  labels.forEach((l,i)=>{
+    const b=document.createElement("div");b.className="bar";
+    b.innerHTML=`<div class="v">${vals[i]}</div><div class="col" style="height:${vals[i]/max*100}%"></div><div class="l">${l}</div>`;
+    box.appendChild(b);
+  });
+}
+function filteredRows(){
+  const f={prov:document.getElementById("fProv").value,city:document.getElementById("fCity").value,type:document.getElementById("fType").value,op:document.getElementById("fOp").value};
+  return window._boardRecords.filter(r=>(!f.prov||r.province===f.prov)&&(!f.city||r.city===f.city)&&(!f.type||r.type===f.type)&&(!f.op||r.operator===f.op));
+}
+function loadBoard(){
+  api("/api/dashboard").then(d=>{
+    window._boardRecords=d.records;
+    fill(document.getElementById("fProv"),uniq(d.records.map(r=>r.province)));
+    fill(document.getElementById("fCity"),uniq(d.records.map(r=>r.city)));
+    fill(document.getElementById("fType"),uniq(d.records.map(r=>r.type)));
+    fill(document.getElementById("fOp"),uniq(d.records.map(r=>r.operator)));
+    render();
+  });
+}
+function resetFilters(){["fProv","fCity","fType","fOp"].forEach(id=>document.getElementById(id).value="");document.getElementById("fDim").value="周";document.getElementById("pivotMetric").value="count";render();}
+function render(){
+  const dim=document.getElementById("fDim").value;
+  const rows=filteredRows();
+  const labels=uniq(rows.map(r=>bucket(r.depart,dim)));
+  const cnt=labels.map(l=>rows.filter(r=>bucket(r.depart,dim)===l).length);
+  const ed=labels.map(l=>rows.filter(r=>bucket(r.depart,dim)===l).reduce((a,r)=>a+r.exec_days,0));
+  const td=labels.map(l=>rows.filter(r=>bucket(r.depart,dim)===l).reduce((a,r)=>a+r.total_days,0));
+  const show=rows.length>0;
+  document.getElementById("charts").style.display=show?"grid":"none";
+  document.getElementById("boardEmpty").style.display=show?"none":"block";
+  if(show){
+    renderBars("barCnt",labels,cnt);renderBars("barExec",labels,ed);renderBars("barTotal",labels,td);
+    renderSummaryTables();
+  }else{
+    ["sumProvince","sumCity","sumType","sumOperator"].forEach(id=>document.getElementById(id).innerHTML="");
+  }
+}
+function renderSummaryTables(){
+  const metric=document.getElementById("pivotMetric").value;
+  const rows=filteredRows();
+  const dims=[
+    {key:"province",label:"省份",id:"sumProvince"},
+    {key:"city",label:"地市",id:"sumCity"},
+    {key:"type",label:"项目类型",id:"sumType"},
+    {key:"operator",label:"运营商",id:"sumOperator"}
+  ];
+  dims.forEach(d=>{
+    const groups={};
+    rows.forEach(r=>{
+      const k=r[d.key]||"(空)";
+      groups[k]=(groups[k]||0)+(metric==="count"?1:r[metric]);
+    });
+    const keys=Object.keys(groups).sort((a,b)=>groups[b]-groups[a]);
+    let html="<thead><tr><th>"+d.label+"</th><th>"+(metric==="count"?"出行次数":(metric==="exec_days"?"执行天数":"花费时间"))+"</th></tr></thead><tbody>";
+    let total=0;
+    keys.forEach(k=>{const v=groups[k];total+=v;html+=`<tr><td>${k}</td><td>${v}</td></tr>`;});
+    html+=`<tr><td><b>合计</b></td><td><b>${total}</b></td></tr></tbody>`;
+    document.getElementById(d.id).innerHTML=html;
+  });
+}
+["fDim","fProv","fCity","fType","fOp","pivotMetric"].forEach(id=>document.getElementById(id).addEventListener("change",render));
+
+// ---------- 导出 ----------
+function doExport(){window.location.href="/api/export";toast("已开始下载 trips.xlsx");}
+</script>
+</body>
+</html>
