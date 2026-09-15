@@ -56,6 +56,9 @@
   .pivot th,.pivot td{text-align:center;white-space:nowrap}
   .pivot td:first-child,.pivot th:first-child{text-align:left;position:sticky;left:0;background:#fff;z-index:1}
   .pivot th:first-child{background:#f8fafc}
+  footer{max-width:1080px;margin:4px auto 26px;padding:0 22px;text-align:center;color:var(--sub);font-size:12px;line-height:1.9}
+  footer a{color:var(--sub);text-decoration:none}
+  footer a:hover{text-decoration:underline}
   /* modal */
   .mask{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
   .mask.show{display:flex}
@@ -405,5 +408,8 @@ function renderSummaryTables(){
 // ---------- 导出 ----------
 function doExport(){window.location.href="/api/export";toast("已开始下载 trips.xlsx");}
 </script>
+<footer>
+  <a href="https://beian.miit.gov.cn" target="_blank" rel="noopener">鲁ICP备2026052422号-1</a>
+</footer>
 </body>
 </html>
